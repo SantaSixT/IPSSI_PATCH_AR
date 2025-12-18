@@ -2,135 +2,130 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import './App.css';
 
+// URL de base de ton API sécurisée
+// Si ton backend est sur le port 3000 et React aussi, React passera probablement sur 3001.
+// Assure-toi que le backend tourne bien sur 3000.
+const API_URL = 'http://localhost:3000';
+
 function App() {
   const [users, setUsers] = useState([]);
   const [queryId, setQueryId] = useState('');
   const [queriedUser, setQueriedUser] = useState(null);
   const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState('');
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    axios.get('http://localhost:8000/users')
-      .then(res => setUsers(res.data))
-      .catch(err => console.error(err.message));
-    
+    fetchUsers();
     loadComments();
   }, []);
 
+  const fetchUsers = () => {
+    axios.get(`${API_URL}/users`)
+      .then(res => setUsers(res.data))
+      .catch(err => console.error("Erreur chargement users:", err));
+  };
+
   const loadComments = async () => {
     try {
-      const response = await axios.get('http://localhost:8000/comments');
+      const response = await axios.get(`${API_URL}/comments`);
       setComments(response.data);
     } catch (err) {
-      console.error('Error loading comments:', err.message);
+      console.error('Erreur chargement commentaires:', err);
     }
   };
 
+  // REFONTE SÉCURISÉE : Plus de SQL envoyé au serveur !
   const handleQuery = async (e) => {
     e.preventDefault();
+    setError('');
+    setQueriedUser(null);
+
     try {
-      const response = await axios.post('http://localhost:8000/user', `SELECT id, name FROM users WHERE id = ${queryId}`, 
-        {
-          headers : {
-            "Content-Type" : 'text/plain'
-          }
-        }
-      );
+      // On demande poliment au serveur l'utilisateur n°X
+      // Le serveur gère la requête SQL, pas le client.
+      const response = await axios.get(`${API_URL}/users/${queryId}`);
       setQueriedUser(response.data);
     } catch (err) {
-      console.error('Error querying user:', err.message);
-      setQueriedUser(null);
+      setError("Utilisateur introuvable ou erreur serveur.");
+      console.error(err);
     }
   };
 
   const handleCommentSubmit = async (e) => {
     e.preventDefault();
     try {
-      await axios.post('http://localhost:8000/comment', newComment, {
-        headers: {
-          "Content-Type": 'text/plain'
-        }
-      });
-      setNewComment('');
-      loadComments();
+        // Envoi simple d'un JSON
+        await axios.post(`${API_URL}/comment`, { content: newComment });
+        setNewComment('');
+        loadComments(); // Recharger la liste
     } catch (err) {
-      console.error('Error submitting comment:', err.message);
+        console.error("Erreur envoi commentaire", err);
     }
   };
 
   return (
     <div className="App">
       <header className="App-header">
+        <h1>Admin Dashboard (Secured) 🔒</h1>
         
-        <section style={{ marginBottom: '3rem', border: '2px solid #61dafb', padding: '1rem', borderRadius: '8px' }}>
-          <h3>Users IDs in SQLite</h3>
-          {users.map(u => <p key={u.id}>{u.id}</p>)}
+        {/* Section Liste Utilisateurs */}
+        <section style={{ marginBottom: '2rem' }}>
+          <h2>All Users</h2>
+          <ul>
+            {users.map(u => <li key={u.id}>{u.name} (ID: {u.id})</li>)}
+          </ul>
+        </section>
 
-          <form onSubmit={handleQuery} style={{ marginTop: '1rem' }}>
-            <input
-              type="text"
-              placeholder="Enter user ID"
-              value={queryId}
-              onChange={(e) => setQueryId(e.target.value)}
-              required
+        {/* Section Recherche Sécurisée */}
+        <section style={{ border: '1px solid white', padding: '1rem', borderRadius: '8px' }}>
+          <h2>Search User by ID</h2>
+          <form onSubmit={handleQuery}>
+            <input 
+              type="number" 
+              value={queryId} 
+              onChange={(e) => setQueryId(e.target.value)} 
+              placeholder="Enter User ID"
+              style={{ padding: '0.5rem' }}
             />
-            <button type="submit">Query User</button>
+            <button type="submit" style={{ marginLeft: '10px', padding: '0.5rem' }}>Search</button>
           </form>
-
-          {queriedUser && queriedUser.length > 0 && (
-            <div style={{ marginTop: '1rem' }}>
-              <h3>Queried User:</h3>
-              {queriedUser.map(u => (
-                <p key={u.id}>
-                  ID: {u.id} — Name: {u.name} — Password: {u.password}
-                </p>
-              ))}
+          
+          {error && <p style={{ color: 'red' }}>{error}</p>}
+          
+          {queriedUser && (
+            <div style={{ marginTop: '1rem', background: '#333', padding: '10px' }}>
+              <h3>Result:</h3>
+              <p>ID: {queriedUser.id}</p>
+              <p>Name: {queriedUser.name}</p>
+              {/* Le mot de passe n'est jamais renvoyé par le backend sécurisé ! */}
             </div>
           )}
         </section>
 
-        <section style={{ border: '2px solid #ff6b6b', padding: '1rem', borderRadius: '8px' }}>
-          
-          <form onSubmit={handleCommentSubmit} style={{ marginTop: '1rem' }}>
+        {/* Section Commentaires */}
+        <section style={{ marginTop: '2rem', width: '100%', maxWidth: '600px' }}>
+          <h3>Comments</h3>
+          <form onSubmit={handleCommentSubmit} style={{ display: 'flex', gap: '10px' }}>
             <textarea
-              placeholder="Enter your comment"
               value={newComment}
               onChange={(e) => setNewComment(e.target.value)}
-              style={{ 
-                width: '80%', 
-                height: '80px', 
-                marginBottom: '0.5rem',
-                padding: '0.5rem',
-                fontSize: '1rem'
-              }}
+              placeholder="Write a comment..."
               required
+              style={{ flex: 1, padding: '10px' }}
             />
-            <br />
-            <button type="submit">Post Comment</button>
+            <button type="submit">Post</button>
           </form>
 
-          <div style={{ marginTop: '2rem', textAlign: 'left', maxWidth: '80%', margin: '2rem auto' }}>
-            <h3>Comments:</h3>
-            {comments.length === 0 ? (
-              <p>No comments yet. TYPE ONE NOW !</p>
-            ) : (
-              comments.map(comment => (
-                <div 
-                    key={comment.id} 
-                    style={{ 
-                      background: '#282c34', 
-                      padding: '1rem', 
-                      marginBottom: '1rem', 
-                      borderRadius: '4px',
-                      border: '1px solid #444'
-                    }}
-                  >
-                    {comment.content}
-                  </div>
-              ))
-            )}
+          <div style={{ marginTop: '20px', textAlign: 'left' }}>
+            {comments.map(c => (
+               <div key={c.id} style={{ background: '#2c3e50', margin: '5px 0', padding: '10px', borderRadius: '4px' }}>
+                 {c.content}
+               </div>
+            ))}
           </div>
         </section>
+
       </header>
     </div>
   );
