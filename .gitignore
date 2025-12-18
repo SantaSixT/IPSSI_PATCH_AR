@@ -141,4 +141,4 @@ vite.config.ts.timestamp-*
 .vite/
 
 #bdd mdp admin
-.env
+**/*.env
